@@ -1,6 +1,8 @@
 # ikuuu.win 自动签到脚本
 
 > 一行命令搞定每日签到，无需浏览器自动化，零依赖（仅需 `requests`）。
+>
+> *Built with [DeepSeek V4 Pro](https://deepseek.com/)*
 
 ## ✨ 特性
 
