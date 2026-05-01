@@ -53,10 +53,13 @@ jobs:
         with:
           path: dist
 
-      - name: List artifacts
-        run: ls -R dist/
+      - name: Flatten & list
+        run: |
+          find dist -type f -exec mv {} dist/ \; 2>/dev/null
+          rm -rf dist/*/
+          ls -la dist/
 
       - uses: softprops/action-gh-release@v2
         with:
-          files: dist/**/*
+          files: dist/*
           generate_release_notes: true
