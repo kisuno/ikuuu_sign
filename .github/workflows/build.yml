@@ -1,0 +1,40 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'           # 推送 v1.0 等 tag 时触发
+  workflow_dispatch:     # 也支持手动触发
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install deps
+        run: pip install requests pyinstaller
+
+      - name: Build
+        run: |
+          pyinstaller --onefile --console --name ikuuu_sign --distpath dist src/ikuuu_sign.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ikuuu_sign-windows
+          path: dist/ikuuu_sign.exe
+
+      - name: Create Release (tag push only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/ikuuu_sign.exe
+          generate_release_notes: true
