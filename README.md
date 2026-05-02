@@ -1,33 +1,44 @@
-# ikuuu.win 自动签到脚本
+# ikuuu.win 自动签到
 
-> 一行命令搞定每日签到，无需浏览器自动化。
+> 每日签到，一行命令。支持 Windows / Linux / macOS。
 >
 > *Built with [DeepSeek V4 Pro](https://deepseek.com/)*
 
-## 📥 下载
+## 📥 安装
 
-| 平台 | 下载 |
-|------|------|
-| 🪟 Windows | [ikuuu_sign-windows.exe](https://github.com/kisuno/ikuuu_sign/releases/latest) |
-| 🐧 Linux | [ikuuu_sign-linux](https://github.com/kisuno/ikuuu_sign/releases/latest) |
-| 🍎 macOS | [ikuuu_sign-macos](https://github.com/kisuno/ikuuu_sign/releases/latest) |
+### 预编译版本（推荐，无需 Python）
 
-> 编译版 **无需安装 Python 或任何依赖**，下载即用。
-> 也可以从源码运行：`pip install requests && python src/ikuuu_sign.py`
+从 [Releases](https://github.com/kisuno/ikuuu_sign/releases) 下载对应架构：
 
-## ✨ 特性
+| 平台 | 架构 | 文件 |
+|------|------|------|
+| 🪟 Windows | x64 | `ikuuu_sign-windows-amd64.exe` |
+| 🐧 Linux | x64 | `ikuuu_sign-linux-amd64` |
+| 🐧 Linux | ARM64 | `ikuuu_sign-linux-arm64` |
+| 🍎 macOS | x64 (Intel) | `ikuuu_sign-macos-amd64` |
+| 🍎 macOS | ARM64 (M1/M2/M3) | `ikuuu_sign-macos-arm64` |
 
-- **一键签到** — 双击 exe 或运行 Python 脚本
-- **Cookie 过期自动引导** — 30 秒内从浏览器复制粘贴搞定
-- **定时任务支持** — 配合 cron / 任务计划程序，每天自动签到
-- **日志记录** — 所有操作自动写入 `checkin.log`
-- **跨平台** — Windows / Linux / macOS 均可使用
+下载后双击（Windows）或在终端运行：
+
+```bash
+# Linux/macOS
+chmod +x ikuuu_sign-linux-amd64
+./ikuuu_sign-linux-amd64
+
+# 静默模式（定时任务）
+./ikuuu_sign-linux-amd64 -s
+```
+
+### 源码运行（需要 Python 3）
+
+```bash
+pip install requests
+python src/ikuuu_sign.py
+```
 
 ## 🚀 快速开始
 
-### 首次获取 Cookie
-
-运行程序，脚本检测到无 Cookie 会自动弹出引导：
+首次运行会提示获取 Cookie：
 
 ```
 ╔══════════════════════════════════════════╗
@@ -41,38 +52,18 @@
 ╚══════════════════════════════════════════╝
 ```
 
-若剪贴板已有有效 Cookie，脚本会自动检测并确认。
+之后每次运行自动签到。
 
-保存后自动完成签到。
+## ⏰ 定时签到
 
-### 每日签到
-
-之后每次运行即可自动签到，无需任何操作。
-
-### 定时签到
-
-| 平台 | 命令 |
+| 平台 | 方式 |
 |------|------|
-| Linux/macOS | `crontab -e` 添加 `0 8 * * * /path/to/ikuuu_sign-linux -s` |
-| Windows | 右键 `setup_task.bat` → 管理员运行 |
-
-静默模式 `-s` 仅写日志，不弹窗。
-
-## 📦 文件结构
-
-```
-ikuuu_sign/
-├── src/ikuuu_sign.py      # 源码（跨平台）
-├── dist/                   # 编译产物（由 CI 生成）
-├── config.json             # 配置 + Cookie
-├── checkin.log             # 日志（自动生成）
-├── run.bat                 # Windows 一键启动
-└── setup_task.bat          # Windows 定时任务
-```
+| Linux/macOS | `crontab -e` 添加 `0 8 * * * /path/to/ikuuu_sign -s` |
+| Windows | 双击 `setup_task.bat`（管理员），每天 08:00 自动签到 |
 
 ## ⚙️ 配置
 
-`config.json` 即配置文件，Cookie 直接写入其中：
+所有配置（含 Cookie）都在 `config.json`：
 
 ```json
 {
@@ -85,51 +76,25 @@ ikuuu_sign/
 
 | 字段 | 说明 |
 |------|------|
-| `site.base_url` | 当前域名 |
-| `cookie` | 登录 Cookie（从浏览器 Console 粘贴） |
+| `site.base_url` | 当前域名（自动探测 18 个域名切换） |
+| `cookie` | 登录凭据，从浏览器 Ctrl+V 粘贴 |
 
-域名不可用时自动探测 18 个已知域名切换。`--fetch` 强制重新探测。
+## ❓ FAQ
 
-## ❓ 常见问题
+**Cookie 能用多久？** 约 7 天，过期后运行脚本自动引导刷新。
 
-### Cookie 能用多久？
+**域名变了怎么办？** 自动探测 ikuuu 的 18 个已知域名，`--fetch` 强制重探。
 
-| Cookie | 有效期 |
-|--------|--------|
-| `uid` / `key` / `email` / `ip` | 约 7 天 |
-| `expire_in` | 服务端控制 |
+**为什么不自动登录？** 网站使用 Geetest v4 验证码，Cookie 方案直接绕过。
 
-过期后运行脚本会自动引导重新获取。
-
-### 为什么不用 Selenium 自动登录？
-
-网站使用 **Geetest v4** 人机验证，自动化浏览器会被封禁。Cookie 方案直接绕过验证码，稳定可靠。
-
-### 签到接口
-
-```
-POST https://ikuuu.win/user/checkin
-Cookie: uid=...; key=...
-```
-
-认证通过 `uid` + `key` 完成，无需密码。
-
-## 🔧 开发者
+## 🔧 开发
 
 ```bash
-pip install requests
-python src/ikuuu_sign.py       # 交互模式
-python src/ikuuu_sign.py -s    # 静默模式
-```
-
-### 发布新版本
-
-```bash
-git tag v1.0.0
+git tag v1.0.2
 git push origin main --tags
 ```
 
-GitHub Actions 自动编译 Windows / Linux / macOS 三平台并发布 Release。
+推送 tag 后 GitHub Actions 自动编译 5 个架构并发布 Release。
 
 ## 📄 License
 

@@ -1,19 +1,10 @@
-# 编译产物
 dist/
-
-# Python
-__pycache__/
 *.pyc
-*.pyo
+__pycache__/
 *.spec
 _build/
 _tmp/
-
-# 运行时数据（每台机器不同）
-ikuuu_cookies.txt
 checkin.log
-
-# 系统
-Thumbs.db
+.vscode/
 .DS_Store
-*.swp
+Thumbs.db
