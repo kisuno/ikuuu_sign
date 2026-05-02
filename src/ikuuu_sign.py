@@ -127,19 +127,44 @@ def guide_get_cookie():
 ║                                          ║
 ║  1. 浏览器打开 {BASE}          ║
 ║  2. 登录，勾选 Remember Me              ║
-║  3. F12 → Console → 输入:               ║
+║  3. F12 → Console → 输入并回车:          ║
 ║     copy(document.cookie)                ║
-║  4. 即将打开 ikuuu_cookies.txt           ║
-║  5. Ctrl+V 粘贴 → Ctrl+S 保存            ║
+║  4. Cookie 已复制到剪贴板               ║
 ║                                          ║
 ╚══════════════════════════════════════════╝
 """)
-    if not os.path.exists(COOKIE_FILE):
+    # 尝试从剪贴板读取
+    cookie_str = ""
+    try:
+        import subprocess
+        result = subprocess.run(
+            ['powershell', '-Command', 'Get-Clipboard'],
+            capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0 and 'uid=' in result.stdout and 'key=' in result.stdout:
+            cookie_str = result.stdout.strip()
+            print(f"  检测到剪贴板内容 ({len(cookie_str)} 字符)，自动使用。")
+            print(f"  {cookie_str[:80]}...")
+            choice = input("
+  确认使用？[Y/n] ").strip().lower()
+            if choice == 'n':
+                cookie_str = ""
+    except Exception:
+        pass
+
+    # 剪贴板读取失败或用户拒绝，手动粘贴
+    if not cookie_str:
+        print("  请将 Cookie 粘贴到此处（右键 → 粘贴，然后回车）:")
+        print("  > ", end="")
+        cookie_str = input().strip()
+
+    # 保存
+    if cookie_str:
         with open(COOKIE_FILE, 'w', encoding='utf-8') as f:
-            f.write('')
-    print("正在打开编辑器...")
-    os.startfile(COOKIE_FILE)
-    input("粘贴保存后按回车继续...")
+            f.write(cookie_str)
+        print(f"  ✅ Cookie 已保存 ({len(cookie_str)} 字符)")
+    else:
+        print("  ❌ 未检测到有效内容")
 
 
 def run_interactive(log):
