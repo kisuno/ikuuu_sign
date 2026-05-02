@@ -76,10 +76,22 @@ ikuuu_sign/
 ```json
 {
     "site": {
+        "master_url": "https://ikuuu.one",
         "base_url": "https://ikuuu.win"
+    },
+    "cookie": {
+        "file": "ikuuu_cookies.txt"
     }
 }
 ```
+
+| 字段 | 说明 |
+|------|------|
+| `site.master_url` | 主域名，自动探测当前可用域名 |
+| `site.base_url` | 当前域名（自动更新） |
+| `cookie.file` | Cookie 文件路径 |
+
+启动时自动从主域名探测，支持 18 个已知域名的自动切换。`--fetch` 强制重新探测。
 
 ## ❓ 常见问题
 
