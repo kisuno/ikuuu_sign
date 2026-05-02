@@ -1,14 +1,19 @@
+## v1.0.4
+
+### 新增
+- 域名自动解析：从 `ikuuu.one` 动态获取域名列表，失效自动轮询
+- `config.json` 新增 `domains` 字段，可手动维护域名池
+
+### 变更
+- 域名不可达时自动切换，无需手动干预
+
 ## v1.0.3
 
 ### 变更
-- 域名默认使用 `ikuuu.one`（主域名），移除 18 域硬编码轮询
-- 域名不可达时交互式输入新域名
+- 默认主域名改为 `ikuuu.one`
 
-### v1.0.2
+## v1.0.2
 
 ### 新增
-- ARM64 架构支持（linux-arm64, macos-arm64）
-
-### 变更
-- Cookie 直接写入 config.json，移除独立 cookie 文件
-- 简化文件结构
+- ARM64 架构 (linux-arm64, macos-arm64)
+- Cookie 写入 config.json

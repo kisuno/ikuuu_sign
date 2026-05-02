@@ -6,7 +6,7 @@ ikuuu 每日签到
   ikuuu_sign.py -s       静默模式（定时任务）
 """
 
-import os, sys, json, logging, argparse
+import os, sys, json, logging, argparse, re
 from urllib.parse import urlparse, unquote
 import requests
 
@@ -15,7 +15,16 @@ os.chdir(SCRIPT_DIR)
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
 CONFIG_FILE = os.path.join(SCRIPT_DIR, "config.json")
-DEFAULT_DOMAIN = "https://ikuuu.one"
+MASTER = "https://ikuuu.one"
+
+# 内置域名列表（从 ikuuu 登录页提取，作为兜底）
+FALLBACK_DOMAINS = [
+    "ikuuu.one", "ikuuu.win", "ikuuu.co", "ikuuu.ltd", "ikuuu.org",
+    "ikuuu.live", "ikuuu.dev", "ikuuu.eu", "ikuuu.uk", "ikuuu.art",
+    "ikuuu.boo", "ikuuu.fyi", "ikuuu.me", "ikuuu.pw", "ikuuu.top",
+    "ikuuu.de", "ikuuu.nl", "ikuuu.ch",
+]
+
 
 # ── 日志 ──────────────────────────────────
 def setup_logging(silent):
@@ -33,7 +42,7 @@ def setup_logging(silent):
 
 # ── 配置 ──────────────────────────────────
 def load_config():
-    cfg = {"base_url": DEFAULT_DOMAIN, "cookie": ""}
+    cfg = {"base_url": MASTER, "cookie": "", "domains": FALLBACK_DOMAINS}
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
@@ -42,6 +51,8 @@ def load_config():
                 cfg['base_url'] = data['site']['base_url']
             if 'cookie' in data:
                 cfg['cookie'] = data['cookie']
+            if 'domains' in data:
+                cfg['domains'] = data['domains']
         except:
             pass
     return cfg
@@ -49,19 +60,61 @@ def load_config():
 
 def save_config(cfg):
     with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-        json.dump({"site": {"base_url": cfg['base_url']}, "cookie": cfg['cookie']},
-                  f, indent=4, ensure_ascii=False)
+        json.dump({
+            "site": {"base_url": cfg['base_url']},
+            "cookie": cfg['cookie'],
+            "domains": cfg['domains']
+        }, f, indent=4, ensure_ascii=False)
 
 
-# ── 域名检测 ──────────────────────────────
-def check_domain(url):
+# ── 域名解析 ──────────────────────────────
+def fetch_domains_from_master():
+    """从主域名页面获取域名列表"""
+    try:
+        r = requests.get(MASTER, timeout=10, headers={'User-Agent': UA})
+        # 尝试从登录页提取 arr 数组
+        r2 = requests.get(f"{MASTER}/auth/login", timeout=10, headers={'User-Agent': UA})
+        for resp in [r, r2]:
+            m = re.search(r'arr\s*=\s*\[(.*?)\]', resp.text, re.DOTALL)
+            if m:
+                domains = re.findall(r'"([^"]+)"', m.group(1))
+                if domains and 'ikuuu' in domains[0]:
+                    return domains
+    except:
+        pass
+    return None
+
+
+def probe(url):
     """检测域名是否可达"""
     try:
-        r = requests.get(f"{url}/auth/login", timeout=8,
+        r = requests.get(f"{url}/auth/login", timeout=5,
                         headers={'User-Agent': UA})
         return r.status_code == 200
     except:
         return False
+
+
+def resolve_domain(cfg, force=False):
+    """解析当前可用域名"""
+    # 1. 尝试当前域名
+    if not force and probe(cfg['base_url']):
+        return cfg['base_url']
+
+    # 2. 尝试从 ikuuu.one 获取最新列表
+    new_domains = fetch_domains_from_master()
+    if new_domains:
+        cfg['domains'] = new_domains
+        save_config(cfg)
+
+    # 3. 轮询已知域名
+    for d in cfg['domains']:
+        url = f"https://{d}"
+        if probe(url):
+            return url
+
+    # 4. 全部失败
+    return cfg['base_url']
 
 
 # ── Cookie ────────────────────────────────
@@ -167,16 +220,14 @@ def guide_get_cookie(cfg):
 
 # ── 主流程 ────────────────────────────────
 def run_interactive(log, cfg):
-    domain = urlparse(cfg['base_url']).netloc
-
-    # 检测域名
-    if not check_domain(cfg['base_url']):
-        print(f"\n  ⚠️  {domain} 不可达")
-        alt = input(f"  输入新域名（直接回车用 {DEFAULT_DOMAIN}）: ").strip()
-        cfg['base_url'] = alt if alt else DEFAULT_DOMAIN
+    # 域名解析
+    url = resolve_domain(cfg)
+    if url != cfg['base_url']:
+        log.info(f"域名切换: {urlparse(cfg['base_url']).netloc} → {urlparse(url).netloc}")
+        cfg['base_url'] = url
         save_config(cfg)
-        domain = urlparse(cfg['base_url']).netloc
 
+    domain = urlparse(cfg['base_url']).netloc
     status = cookie_valid(cfg)
     icon = {"ok": "✅", "expired": "❌", "missing": "❌", "unknown": "⚠️"}
 
@@ -214,6 +265,7 @@ def run_interactive(log, cfg):
 
 
 def run_silent(log, cfg):
+    cfg['base_url'] = resolve_domain(cfg)
     status = cookie_valid(cfg)
     if status != "ok":
         log.error(f"Cookie {status}")
@@ -227,7 +279,6 @@ def run_silent(log, cfg):
         sys.exit(1)
 
 
-# ── 入口 ──────────────────────────────────
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-s', '--silent', action='store_true', help='静默模式')
