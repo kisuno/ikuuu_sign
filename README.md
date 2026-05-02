@@ -64,34 +64,31 @@
 ikuuu_sign/
 ├── src/ikuuu_sign.py      # 源码（跨平台）
 ├── dist/                   # 编译产物（由 CI 生成）
+├── config.json             # 配置 + Cookie
+├── checkin.log             # 日志（自动生成）
 ├── run.bat                 # Windows 一键启动
-├── setup_task.bat          # Windows 定时任务
-├── config.json             # 配置文件
-├── ikuuu_cookies.txt       # Cookie（自动生成）
-└── checkin.log             # 日志（自动生成）
+└── setup_task.bat          # Windows 定时任务
 ```
 
 ## ⚙️ 配置
 
+`config.json` 即配置文件，Cookie 直接写入其中：
+
 ```json
 {
     "site": {
-        "master_url": "https://ikuuu.one",
         "base_url": "https://ikuuu.win"
     },
-    "cookie": {
-        "file": "ikuuu_cookies.txt"
-    }
+    "cookie": "uid=xxx; email=xxx; key=xxx; ip=xxx; expire_in=xxx"
 }
 ```
 
 | 字段 | 说明 |
 |------|------|
-| `site.master_url` | 主域名，自动探测当前可用域名 |
-| `site.base_url` | 当前域名（自动更新） |
-| `cookie.file` | Cookie 文件路径 |
+| `site.base_url` | 当前域名 |
+| `cookie` | 登录 Cookie（从浏览器 Console 粘贴） |
 
-启动时自动从主域名探测，支持 18 个已知域名的自动切换。`--fetch` 强制重新探测。
+域名不可用时自动探测 18 个已知域名切换。`--fetch` 强制重新探测。
 
 ## ❓ 常见问题
 

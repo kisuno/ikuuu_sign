@@ -1,9 +1,6 @@
 {
     "site": {
-        "master_url": "https://ikuuu.one",
         "base_url": "https://ikuuu.win"
     },
-    "": {
-        "file": "ikuuu_cookies.txt"
-    }
+    ""
 }
