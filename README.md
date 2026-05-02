@@ -83,7 +83,7 @@ python src/ikuuu_sign.py
 
 **Cookie 能用多久？** 约 7 天，过期后运行脚本自动引导刷新。
 
-**域名变了怎么办？** 自动探测 ikuuu 的 18 个已知域名，`--fetch` 强制重探。
+**域名变了怎么办？** ikuuu.one 为主域名，其他域名不可用时脚本会提示输入新域名。也可手动修改 `config.json` 中的 `base_url`。
 
 **为什么不自动登录？** 网站使用 Geetest v4 验证码，Cookie 方案直接绕过。
 

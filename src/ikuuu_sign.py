@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """
-ikuuu.win 每日签到
-====================
+ikuuu 每日签到
+================
   ikuuu_sign.py          交互模式
-  ikuuu_sign.py -s       静默模式
-  ikuuu_sign.py --fetch  重新探测可用域名
+  ikuuu_sign.py -s       静默模式（定时任务）
 """
 
-import os, sys, json, time, logging, argparse
+import os, sys, json, logging, argparse
 from urllib.parse import urlparse, unquote
 import requests
 
@@ -16,14 +15,7 @@ os.chdir(SCRIPT_DIR)
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
 CONFIG_FILE = os.path.join(SCRIPT_DIR, "config.json")
-
-# ikuuu 所有已知域名
-IKUUU_DOMAINS = [
-    "ikuuu.one", "ikuuu.win", "ikuuu.co", "ikuuu.ltd", "ikuuu.org",
-    "ikuuu.live", "ikuuu.dev", "ikuuu.eu", "ikuuu.uk", "ikuuu.art",
-    "ikuuu.boo", "ikuuu.fyi", "ikuuu.me", "ikuuu.pw", "ikuuu.top",
-    "ikuuu.de", "ikuuu.nl", "ikuuu.ch",
-]
+DEFAULT_DOMAIN = "https://ikuuu.one"
 
 # ── 日志 ──────────────────────────────────
 def setup_logging(silent):
@@ -41,7 +33,7 @@ def setup_logging(silent):
 
 # ── 配置 ──────────────────────────────────
 def load_config():
-    cfg = {"base_url": "https://ikuuu.win", "cookie": ""}
+    cfg = {"base_url": DEFAULT_DOMAIN, "cookie": ""}
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
@@ -61,44 +53,19 @@ def save_config(cfg):
                   f, indent=4, ensure_ascii=False)
 
 
-# ── 域名探测 ──────────────────────────────
-def probe_domain(url, timeout=5):
-    """检测域名是否可达且返回登录页"""
+# ── 域名检测 ──────────────────────────────
+def check_domain(url):
+    """检测域名是否可达"""
     try:
-        r = requests.get(url, timeout=timeout, allow_redirects=True,
+        r = requests.get(f"{url}/auth/login", timeout=8,
                         headers={'User-Agent': UA})
-        final = r.url.rstrip('/')
-        host = urlparse(final).netloc
-        if 'ikuuu' in host:
-            return f"https://{host}"
+        return r.status_code == 200
     except:
-        pass
-    return None
+        return False
 
 
-def resolve_domain(current_url, force=False):
-    """探测可用域名"""
-    # 1. 先试当前域名
-    if not force:
-        final = probe_domain(current_url)
-        if final:
-            return final
-
-    # 2. 轮询所有已知域名
-    for domain in IKUUU_DOMAINS:
-        url = f"https://{domain}"
-        if url == current_url:
-            continue
-        final = probe_domain(url, timeout=3)
-        if final:
-            return final
-
-    return current_url
-
-
-# ── Cookie 解析 ───────────────────────────
+# ── Cookie ────────────────────────────────
 def parse_cookies(cookie_str):
-    """解析 cookie 字符串为 dict"""
     cookies = {}
     for item in cookie_str.split(';'):
         item = item.strip()
@@ -110,7 +77,6 @@ def parse_cookies(cookie_str):
 
 
 def cookie_valid(cfg):
-    """检查配置中的 cookie 是否有效"""
     cookies = parse_cookies(cfg['cookie'])
     if not cookies or 'uid' not in cookies or 'key' not in cookies:
         return "missing"
@@ -173,7 +139,6 @@ def guide_get_cookie(cfg):
 ╚══════════════════════════════════════════╝
 """)
     cookie_str = ""
-    # 尝试剪贴板
     try:
         import subprocess
         r = subprocess.run(['powershell', '-Command', 'Get-Clipboard'],
@@ -203,12 +168,21 @@ def guide_get_cookie(cfg):
 # ── 主流程 ────────────────────────────────
 def run_interactive(log, cfg):
     domain = urlparse(cfg['base_url']).netloc
+
+    # 检测域名
+    if not check_domain(cfg['base_url']):
+        print(f"\n  ⚠️  {domain} 不可达")
+        alt = input(f"  输入新域名（直接回车用 {DEFAULT_DOMAIN}）: ").strip()
+        cfg['base_url'] = alt if alt else DEFAULT_DOMAIN
+        save_config(cfg)
+        domain = urlparse(cfg['base_url']).netloc
+
     status = cookie_valid(cfg)
     icon = {"ok": "✅", "expired": "❌", "missing": "❌", "unknown": "⚠️"}
 
     print(f"""
   ╔══════════════════════════════╗
-  ║   ikuuu.win 每日签到        ║
+  ║   ikuuu 每日签到             ║
   ║   {domain:<24s} ║
   ║   Cookie: {icon.get(status, '?')} {status:<7s} ║
   ╚══════════════════════════════╝""")
@@ -257,18 +231,10 @@ def run_silent(log, cfg):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-s', '--silent', action='store_true', help='静默模式')
-    parser.add_argument('--fetch', action='store_true', help='重新探测可用域名')
     args = parser.parse_args()
 
     log = setup_logging(args.silent)
     cfg = load_config()
-
-    # 域名探测
-    new_url = resolve_domain(cfg['base_url'], force=args.fetch)
-    if new_url != cfg['base_url']:
-        log.info(f"域名切换: {urlparse(cfg['base_url']).netloc} → {urlparse(new_url).netloc}")
-        cfg['base_url'] = new_url
-        save_config(cfg)
 
     try:
         if args.silent:
