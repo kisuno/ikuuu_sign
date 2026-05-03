@@ -1,6 +1,6 @@
-# ikuuu.win 自动签到
+# ikuuu 自动签到
 
-> 每日签到，一行命令。支持 Windows / Linux / macOS。
+> 每日签到，支持 Windows / Linux / macOS。从 ikuuu.one 动态解析可用域名。
 >
 > *Built with [DeepSeek V4 Pro](https://deepseek.com/)*
 
@@ -44,15 +44,15 @@ python src/ikuuu_sign.py
 ╔══════════════════════════════════════════╗
 ║         获取 Cookie（30 秒搞定）          ║
 ╠══════════════════════════════════════════╣
-║  1. 浏览器打开 https://ikuuu.win         ║
-║  2. 登录，勾选 Remember Me              ║
+║  1. 浏览器打开当前域名并登录              ║
+║  2. 勾选 Remember Me                    ║
 ║  3. F12 → Console → 输入:               ║
 ║     copy(document.cookie) → 回车        ║
 ║  4. 回终端，右键粘贴 → 回车              ║
 ╚══════════════════════════════════════════╝
 ```
 
-之后每次运行自动签到。
+之后每次运行自动签到，Cookie 过期自动引导刷新。
 
 ## ⏰ 定时签到
 
@@ -63,34 +63,50 @@ python src/ikuuu_sign.py
 
 ## ⚙️ 配置
 
-所有配置（含 Cookie）都在 `config.json`：
+`config.json`：
 
 ```json
 {
     "site": {
-        "base_url": "https://ikuuu.win"
+        "base_url": "https://ikuuu.one"
     },
-    "cookie": "uid=xxx; email=xxx; key=xxx; ip=xxx; expire_in=xxx"
+    "cookie": "uid=xxx; email=xxx; key=xxx; ip=xxx; expire_in=xxx",
+    "domains": ["ikuuu.one", "ikuuu.win", "ikuuu.fyi"]
 }
 ```
 
 | 字段 | 说明 |
 |------|------|
-| `site.base_url` | 当前域名（自动探测 18 个域名切换） |
-| `cookie` | 登录凭据，从浏览器 Ctrl+V 粘贴 |
+| `site.base_url` | 当前域名 |
+| `cookie` | 登录凭据，终端粘贴即可 |
+| `domains` | 域名池（由解析器自动更新） |
+
+## 🔍 域名解析
+
+内置 `src/ikuuu_parser.py` 从 ikuuu.one 动态解析当前可用域名，纯 `requests` 实现：
+
+```
+ikuuu.one  JS 碎片解码 → .win + .fyi → 生成 ikuuu.win / ikuuu.fyi
+```
+
+域名池自动更新写入 `config.json`，无需手动维护。
 
 ## ❓ FAQ
 
-**Cookie 能用多久？** 约 7 天，过期后运行脚本自动引导刷新。
+**Cookie 能用多久？** 约 7 天，过期后脚本自动引导刷新。
 
-**域名变了怎么办？** ikuuu.one 为主域名，其他域名不可用时脚本会提示输入新域名。也可手动修改 `config.json` 中的 `base_url`。
+**域名变了怎么办？** 解析器自动从 ikuuu.one 提取最新域名，探测可用后自动切换。
 
 **为什么不自动登录？** 网站使用 Geetest v4 验证码，Cookie 方案直接绕过。
 
 ## 🔧 开发
 
 ```bash
-git tag v1.0.2
+# 运行解析器
+python src/ikuuu_parser.py --json
+
+# 发布新版本
+git tag v1.0.5
 git push origin main --tags
 ```
 
