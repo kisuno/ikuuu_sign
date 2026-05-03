@@ -6,22 +6,24 @@ ikuuu 每日签到
   ikuuu_sign.py -s       静默模式（定时任务）
 
 域名策略:
-  默认 ikuuu.one（主站），不可达时轮询 domains 列表。
-  脚本启动时自动探测可用域名并更新配置。
+  从 ikuuu.one 动态解析当前可用域名，不可达时轮询本地兜底列表。
 """
 
 import os, sys, json, logging, argparse
 from urllib.parse import urlparse, unquote
 import requests
 
+from ikuuu_parser import parse as parse_domains
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__)) if not getattr(sys, 'frozen', False) else os.path.dirname(sys.executable)
 os.chdir(SCRIPT_DIR)
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
 CONFIG_FILE = os.path.join(SCRIPT_DIR, "config.json")
+MASTER = "https://ikuuu.one"
 
-# 内置域名池（ikuuu.one 不可达时轮询）
-BUILTIN_DOMAINS = ["ikuuu.one", "ikuuu.win", "ikuuu.fyi"]
+# 最终兜底（解析器也失败时）
+FALLBACK_DOMAINS = ["ikuuu.one", "ikuuu.win", "ikuuu.fyi"]
 
 
 def setup_logging(silent):
@@ -38,7 +40,7 @@ def setup_logging(silent):
 
 
 def load_config():
-    cfg = {"base_url": "https://ikuuu.one", "cookie": "", "domains": list(BUILTIN_DOMAINS)}
+    cfg = {"base_url": MASTER, "cookie": "", "domains": list(FALLBACK_DOMAINS)}
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
@@ -63,9 +65,20 @@ def save_config(cfg):
         }, f, indent=4, ensure_ascii=False)
 
 
-# ── 域名探测 ──────────────────────────────
+# ── 域名解析 ──────────────────────────────
+def fetch_domains_from_master():
+    """从 ikuuu.one 动态解析域名列表"""
+    try:
+        result = parse_domains(MASTER)
+        domains = [d['domain'] for d in result.get('domains', [])]
+        if domains:
+            return domains
+    except Exception:
+        pass
+    return None
+
+
 def probe(domain):
-    """检测域名是否可达"""
     try:
         r = requests.get(f"https://{domain}/auth/login", timeout=5,
                         headers={'User-Agent': UA})
@@ -76,19 +89,29 @@ def probe(domain):
 
 def resolve_domain(cfg):
     """返回当前可用域名"""
-    # 1. 当前域名
     current = urlparse(cfg['base_url']).netloc
+
+    # 1. 当前域名
     if probe(current):
         return cfg['base_url']
 
-    # 2. 轮询域名池
+    # 2. 从 ikuuu.one 动态解析
+    new_domains = fetch_domains_from_master()
+    if new_domains:
+        for d in new_domains:
+            url = f"https://{d}"
+            if d != current and probe(d):
+                cfg['domains'] = new_domains
+                return url
+
+    # 3. 配置中的域名池
     for d in cfg['domains']:
         url = f"https://{d}"
         if d != current and probe(d):
             return url
 
-    # 3. 轮询内置兜底
-    for d in BUILTIN_DOMAINS:
+    # 4. 内置兜底
+    for d in FALLBACK_DOMAINS:
         url = f"https://{d}"
         if d != current and probe(d):
             return url
@@ -195,7 +218,7 @@ def guide_get_cookie(cfg):
 
 
 def run(log, cfg, silent):
-    # 域名
+    # 动态解析域名
     url = resolve_domain(cfg)
     if url != cfg['base_url']:
         log.info(f"域名: {urlparse(cfg['base_url']).netloc} → {urlparse(url).netloc}")
