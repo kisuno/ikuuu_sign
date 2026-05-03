@@ -4,9 +4,13 @@ ikuuu 每日签到
 ================
   ikuuu_sign.py          交互模式
   ikuuu_sign.py -s       静默模式（定时任务）
+
+域名策略:
+  默认 ikuuu.one（主站），不可达时轮询 domains 列表。
+  脚本启动时自动探测可用域名并更新配置。
 """
 
-import os, sys, json, logging, argparse, re
+import os, sys, json, logging, argparse
 from urllib.parse import urlparse, unquote
 import requests
 
@@ -15,18 +19,11 @@ os.chdir(SCRIPT_DIR)
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
 CONFIG_FILE = os.path.join(SCRIPT_DIR, "config.json")
-MASTER = "https://ikuuu.one"
 
-# 内置域名列表（从 ikuuu 登录页提取，作为兜底）
-FALLBACK_DOMAINS = [
-    "ikuuu.one", "ikuuu.win", "ikuuu.co", "ikuuu.ltd", "ikuuu.org",
-    "ikuuu.live", "ikuuu.dev", "ikuuu.eu", "ikuuu.uk", "ikuuu.art",
-    "ikuuu.boo", "ikuuu.fyi", "ikuuu.me", "ikuuu.pw", "ikuuu.top",
-    "ikuuu.de", "ikuuu.nl", "ikuuu.ch",
-]
+# 内置域名池（ikuuu.one 不可达时轮询）
+BUILTIN_DOMAINS = ["ikuuu.one", "ikuuu.win", "ikuuu.fyi"]
 
 
-# ── 日志 ──────────────────────────────────
 def setup_logging(silent):
     handlers = [logging.FileHandler(os.path.join(SCRIPT_DIR, 'checkin.log'), encoding='utf-8')]
     if not silent:
@@ -40,9 +37,8 @@ def setup_logging(silent):
     return logging.getLogger(__name__)
 
 
-# ── 配置 ──────────────────────────────────
 def load_config():
-    cfg = {"base_url": MASTER, "cookie": "", "domains": FALLBACK_DOMAINS}
+    cfg = {"base_url": "https://ikuuu.one", "cookie": "", "domains": list(BUILTIN_DOMAINS)}
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
@@ -67,53 +63,36 @@ def save_config(cfg):
         }, f, indent=4, ensure_ascii=False)
 
 
-# ── 域名解析 ──────────────────────────────
-def fetch_domains_from_master():
-    """从主域名页面获取域名列表"""
-    try:
-        r = requests.get(MASTER, timeout=10, headers={'User-Agent': UA})
-        # 尝试从登录页提取 arr 数组
-        r2 = requests.get(f"{MASTER}/auth/login", timeout=10, headers={'User-Agent': UA})
-        for resp in [r, r2]:
-            m = re.search(r'arr\s*=\s*\[(.*?)\]', resp.text, re.DOTALL)
-            if m:
-                domains = re.findall(r'"([^"]+)"', m.group(1))
-                if domains and 'ikuuu' in domains[0]:
-                    return domains
-    except:
-        pass
-    return None
-
-
-def probe(url):
+# ── 域名探测 ──────────────────────────────
+def probe(domain):
     """检测域名是否可达"""
     try:
-        r = requests.get(f"{url}/auth/login", timeout=5,
+        r = requests.get(f"https://{domain}/auth/login", timeout=5,
                         headers={'User-Agent': UA})
         return r.status_code == 200
     except:
         return False
 
 
-def resolve_domain(cfg, force=False):
-    """解析当前可用域名"""
-    # 1. 尝试当前域名
-    if not force and probe(cfg['base_url']):
+def resolve_domain(cfg):
+    """返回当前可用域名"""
+    # 1. 当前域名
+    current = urlparse(cfg['base_url']).netloc
+    if probe(current):
         return cfg['base_url']
 
-    # 2. 尝试从 ikuuu.one 获取最新列表
-    new_domains = fetch_domains_from_master()
-    if new_domains:
-        cfg['domains'] = new_domains
-        save_config(cfg)
-
-    # 3. 轮询已知域名
+    # 2. 轮询域名池
     for d in cfg['domains']:
         url = f"https://{d}"
-        if probe(url):
+        if d != current and probe(d):
             return url
 
-    # 4. 全部失败
+    # 3. 轮询内置兜底
+    for d in BUILTIN_DOMAINS:
+        url = f"https://{d}"
+        if d != current and probe(d):
+            return url
+
     return cfg['base_url']
 
 
@@ -144,7 +123,6 @@ def cookie_valid(cfg):
         return "unknown"
 
 
-# ── 签到 ──────────────────────────────────
 def do_checkin(cfg):
     cookies = parse_cookies(cfg['cookie'])
     if not cookies:
@@ -157,7 +135,6 @@ def do_checkin(cfg):
     })
     for k, v in cookies.items():
         s.cookies.set(k, v)
-
     xsrf = cookies.get('XSRF-TOKEN', '')
     if xsrf:
         s.headers['X-XSRF-TOKEN'] = unquote(xsrf)
@@ -178,7 +155,6 @@ def do_checkin(cfg):
         return False, str(e)
 
 
-# ── Cookie 输入 ───────────────────────────
 def guide_get_cookie(cfg):
     print(f"""
 ╔══════════════════════════════════════════╗
@@ -218,16 +194,26 @@ def guide_get_cookie(cfg):
         print("  ❌ 未检测到有效内容")
 
 
-# ── 主流程 ────────────────────────────────
-def run_interactive(log, cfg):
-    # 域名解析
+def run(log, cfg, silent):
+    # 域名
     url = resolve_domain(cfg)
     if url != cfg['base_url']:
-        log.info(f"域名切换: {urlparse(cfg['base_url']).netloc} → {urlparse(url).netloc}")
+        log.info(f"域名: {urlparse(cfg['base_url']).netloc} → {urlparse(url).netloc}")
         cfg['base_url'] = url
         save_config(cfg)
 
     domain = urlparse(cfg['base_url']).netloc
+
+    if silent:
+        status = cookie_valid(cfg)
+        if status != "ok":
+            log.error(f"Cookie {status}")
+            sys.exit(1)
+        success, msg = do_checkin(cfg)
+        log.info(f"OK - {msg}" if success else f"FAIL - {msg}")
+        sys.exit(0 if success else 1)
+
+    # 交互模式
     status = cookie_valid(cfg)
     icon = {"ok": "✅", "expired": "❌", "missing": "❌", "unknown": "⚠️"}
 
@@ -249,34 +235,16 @@ def run_interactive(log, cfg):
 
     print("\n  签到中...")
     success, msg = do_checkin(cfg)
+    print(f"  {'✅' if success else '❌'} {msg}")
 
-    if success:
-        print(f"  ✅ {msg}")
-    else:
-        print(f"  ❌ {msg}")
-        if "失效" in msg:
-            print("\n  重新获取 Cookie...")
-            guide_get_cookie(cfg)
-            success, msg = do_checkin(cfg)
-            print(f"  {'✅' if success else '❌'} {msg}")
+    if not success and "失效" in msg:
+        print("\n  重新获取 Cookie...")
+        guide_get_cookie(cfg)
+        success, msg = do_checkin(cfg)
+        print(f"  {'✅' if success else '❌'} {msg}")
 
     print()
     input("按回车退出...")
-
-
-def run_silent(log, cfg):
-    cfg['base_url'] = resolve_domain(cfg)
-    status = cookie_valid(cfg)
-    if status != "ok":
-        log.error(f"Cookie {status}")
-        sys.exit(1)
-
-    success, msg = do_checkin(cfg)
-    if success:
-        log.info(f"OK - {msg}")
-    else:
-        log.error(f"FAIL - {msg}")
-        sys.exit(1)
 
 
 if __name__ == '__main__':
@@ -288,15 +256,10 @@ if __name__ == '__main__':
     cfg = load_config()
 
     try:
-        if args.silent:
-            run_silent(log, cfg)
-        else:
-            run_interactive(log, cfg)
+        run(log, cfg, args.silent)
     except KeyboardInterrupt:
-        if not args.silent:
-            print("\n已取消")
+        if not args.silent: print("\n已取消")
     except Exception as e:
         log.error(f"异常: {e}")
-        if not args.silent:
-            input("\n按回车退出...")
+        if not args.silent: input("\n按回车退出...")
         sys.exit(1)

@@ -4,9 +4,8 @@
     },
     "",
     "domains": [
-        "ikuuu.one", "ikuuu.win", "ikuuu.co", "ikuuu.ltd", "ikuuu.org",
-        "ikuuu.live", "ikuuu.dev", "ikuuu.eu", "ikuuu.uk", "ikuuu.art",
-        "ikuuu.boo", "ikuuu.fyi", "ikuuu.me", "ikuuu.pw", "ikuuu.top",
-        "ikuuu.de", "ikuuu.nl", "ikuuu.ch"
+        "ikuuu.one",
+        "ikuuu.win",
+        "ikuuu.fyi"
     ]
 }
